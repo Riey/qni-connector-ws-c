@@ -1,4 +1,4 @@
-// This source is from part of https://github.com/tatsuhiro-t/wslay/blob/master/examples/echoserv.cc
+// This source is from part of https://github.com/tatsuhiro-t/wslay/blob/master/examples/fork-echoserv.c
 
 /*
  * Wslay - The WebSocket Library
