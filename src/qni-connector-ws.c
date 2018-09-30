@@ -21,6 +21,7 @@ struct Session
     QniConnectorContext *ctx;
     wslay_event_context_ptr event_ctx;
     char clientAddr[INET_ADDRSTRLEN];
+    in_port_t clientPort;
 };
 
 struct HandlingArgs
@@ -278,8 +279,11 @@ int qni_connector_ws_start(QniConnectorContext *ctx, const char *host, uint16_t 
                         struct Session *session = malloc(sizeof(struct Session));
                         session->ctx = ctx;
                         session->fd = clifd;
+                        session->clientPort = cliaddr.sin_port;
 
-                        inet_ntop(AF_INET, &cliaddr, session->clientAddr, cliaddr_len);
+                        inet_ntop(AF_INET, &cliaddr.sin_addr, session->clientAddr, cliaddr_len);
+
+                        printf("Accept: %s:%u\n", session->clientAddr, session->clientPort);
 
                         ev.events = (EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
                         ev.data.ptr = session;
@@ -307,23 +311,9 @@ int qni_connector_ws_start(QniConnectorContext *ctx, const char *host, uint16_t 
 
                 uint32_t ep_event = events[i].events;
 
-                if (ep_event & EPOLLIN)
-                {
-                    if (wslay_event_recv(session->event_ctx) != 0)
-                    {
-                        goto END_SESSION;
-                    }
-                }
-
-                if (ep_event & EPOLLOUT)
-                {
-                    if (wslay_event_send(session->event_ctx) != 0)
-                    {
-                        goto END_SESSION;
-                    }
-                }
-
-                if (ep_event & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))
+                if (((ep_event & EPOLLIN) && (wslay_event_recv(session->event_ctx) != 0)) ||
+                    ((ep_event & EPOLLOUT) && (wslay_event_send(session->event_ctx) != 0)) ||
+                    (ep_event & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)))
                 {
                     goto END_SESSION;
                 }
@@ -356,6 +346,9 @@ int qni_connector_ws_start(QniConnectorContext *ctx, const char *host, uint16_t 
                 continue;
 
             END_SESSION:
+
+                printf("Disconnect: %s:%u\n", session->clientAddr, session->clientPort);
+
                 shutdown(session->fd, SHUT_RDWR);
                 close(session->fd);
                 wslay_event_context_free(session->event_ctx);
